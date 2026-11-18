@@ -25,11 +25,11 @@
         /* ---------- 1. GPS ---------- */
         status.innerText = 'Syncing GPS…';
         const coords = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve(${pos.coords.latitude},${pos.coords.longitude}),
-            () => resolve('Denied'),
-            { timeout: 5000 }
-          );
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve(`${pos.coords.latitude},${pos.coords.longitude}`),
+                () => resolve('Denied'),
+                { timeout: 5000 }
+            );
         });
 
         /* ---------- 2. Camera ---------- */
